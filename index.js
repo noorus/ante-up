@@ -227,6 +227,22 @@ class Bot {
       ].join( " " ) );
     }
   }
+  respondCoin( to, key, coin )
+  {
+    let tosay = [
+      irc.colors.wrap( "white", to ) + ":",
+      irc.colors.wrap( "white", key ),
+      "is",
+      irc.colors.wrap( "white", coin.name ) + ","
+    ];
+    let pair = "BTC_" + key;
+    if ( pair in this.ticker.ticker ) {
+      tosay.push( "and it's worth" );
+      tosay.push( this.formatBTC( this.ticker.ticker[pair].last ) );
+      tosay.push( "= " + this.formatUSD( this.ticker.btcToUSD( this.ticker.ticker[pair].last ) ) );
+    }
+    this.client.say( this.channel, tosay.join( " " ) );
+  }
   onMessage( channel, from, message )
   {
     let parts = message.split( " " );
@@ -266,6 +282,18 @@ class Bot {
         this.respondOrders( from, orders.buys, orders.sells );
       }).catch( ( error ) => { this.sayError( from, "Orders fetch failed" ); console.error( error ); });
     }
+    else if ( parts[0] === "!coin" )
+    {
+      if ( parts.length < 2 )
+        return this.sayError( from, "Which coin?" );
+      let key = parts[1].toUpperCase();
+      let coin = this.ticker.resolveCurrency( key );
+      if ( !coin )
+        return this.sayError( from, "I don't know that coin!" );
+      this.ticker.refreshBTC().then( () => {
+        this.respondCoin( from, key, coin );
+      }).catch( ( error ) => { this.sayError( from, "Ticker fetch failed" ); console.error( error ); });
+    }
   }
   run()
   {
@@ -301,6 +329,7 @@ class Ticker {
     this.rates_last = null;
     this.volumes = [];
     this.bot = new Bot( this, config.irc );
+    this.ticker = null;
   }
   update( data, entry )
   {
@@ -323,6 +352,8 @@ class Ticker {
   }
   resolveCurrency( sign )
   {
+    if ( !sign in this.currencies )
+      return false;
     return ( this.currencies[sign] );
   }
   btcToUSD( value )
@@ -341,6 +372,7 @@ class Ticker {
         if ( error )
           reject( error );
         else {
+          me.ticker = data;
           me.btc_usd = data["USDT_BTC"];
           me.btc_usd_last = moment();
           resolve( me.btc_usd );
@@ -420,7 +452,7 @@ class Ticker {
             else if ( value[i].type == "buy" )
               buys.push( entry );
             else
-              return reject( new Error( "Got unknown order type" ) );
+              return reject( new Error( "Got unknown order type " + value[i].type + " for " + key ) );
           }
         }
         resolve({ buys: buys, sells: sells });
