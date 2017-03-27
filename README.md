@@ -45,6 +45,8 @@ ante-chan: 6) SJCX Storjcoin X   61.56764 SJCX = B0.01210 BTC
 ante-chan: 7) BTC  Bitcoin        0.00005 BTC  = B0.00005 BTC
 ante-chan: 8) BTM  Bitmark           0.05 BTM  = B0.00001 BTC
 ante-chan: Total: B0.62469 BTC = $635.93431 USD (€584.01663 EUR)
+> you: !orders
+ante-chan: SELL 0.1873 DASH for 0.02809 BTC at 0.15 BTC (44 minutes ago)
 ```
 
 ## please note
