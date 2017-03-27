@@ -29,6 +29,8 @@ Ante dat cryptocoin investment bizniz up with an insecure IRC bot!
 ```
 > you: !btc
 ante-chan: BTC/USD Currently B1 BTC = $1005 USD (€930.1275 EUR) (24h: +0.02238%)
+> you: !coin xmr
+ante-chan: XMR is Monero, and it's worth B0.01806 BTC = $18.58443 USD (€17.0672 EUR)
 > you: !hot
 ante-chan: 1) ETH  Ethereum: 42788.88477 BTC (24h volume)
 ante-chan: 2) DCR  Decred:   11928.63006 BTC (24h volume)
