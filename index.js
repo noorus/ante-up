@@ -108,9 +108,13 @@ class Bot {
     else
       return sprintf( "%s USD", irc.colors.wrap( "white", "$" + f.round( value, 5 ) ) );
   }
+  formatCurrency( value, sign, prefix )
+  {
+    return sprintf( "%s %s", irc.colors.wrap( "white", prefix + f.round( value, 5 ) ), sign );
+  }
   formatBTC( value )
   {
-    return sprintf( "%s BTC", irc.colors.wrap( "white", "B" + f.round( value, 5 ) ) );
+    return this.formatCurrency( value, "BTC", "B" );
   }
   formatPercentage( percentage )
   {
@@ -156,15 +160,45 @@ class Bot {
       let currency = this.ticker.currencies[pair[1]];
       let vol = this.formatVolume( volumes[i].baseVolume );
       show.push({ short: pair[1], currency: currency, volume: vol });
-      if ( pair[1].length > lengths[0] ) lengths[0] = pair[1].length + 2;
-      if ( currency.name.length > lengths[1] ) lengths[1] = currency.name.length + 2;
-      if ( vol.length > lengths[2] ) lengths[2] = vol.length + 1;
+      if ( pair[1].length + 2 > lengths[0] ) lengths[0] = pair[1].length + 2;
+      if ( currency.name.length + 2 > lengths[1] ) lengths[1] = currency.name.length + 2;
+      if ( vol.length + 1 > lengths[2] ) lengths[2] = vol.length + 1;
     }
     let shortpad = Array( lengths[0] ).join( " " );
     let longpad = Array( lengths[1] ).join( " " );
     let volpad = Array( lengths[2] ).join( " " );
     for ( let i = 0; i < count; i++ )
-      this.client.say( this.channel, sprintf( "%i) ", i + 1 ) + irc.colors.wrap( "white", pad( shortpad, show[i].short, false ) ) + " " + pad( longpad, show[i].currency.name + ":", false ) + " " + pad( volpad, show[i].volume, true ) + " BTC (Poloniex 24h)" );
+      this.client.say( this.channel, sprintf( "%i) ", i + 1 ) + irc.colors.wrap( "white", pad( shortpad, show[i].short, false ) ) + " " + pad( longpad, show[i].currency.name + ":", false ) + " " + pad( volpad, show[i].volume, true ) + " BTC (24h volume)" );
+  }
+  respondBalances( to, balances )
+  {
+    let total = 0.0;
+    let show = [];
+    let lengths = [0, 0, 0];
+    for ( let i = 0; i < balances.length; i++ ) {
+      total = total + balances[i].btc;
+      let data = this.ticker.resolveCurrency( balances[i].currency );
+      let item = { short: balances[i].currency, long: data.name, available: f.round( balances[i].available, 5 ).toString(), onOrders: balances[i].onOrders, btc: balances[i].btc };
+      if ( item.short.length > lengths[0] ) lengths[0] = item.short.length;
+      if ( item.long.length > lengths[1] ) lengths[1] = item.long.length;
+      if ( item.available.length > lengths[2] ) lengths[2] = item.available.length;
+      show.push( item );
+    }
+    let shortpad = Array( lengths[0] + 1 ).join( " " );
+    let longpad = Array( lengths[1] + 1 ).join( " " );
+    let availpad = Array( lengths[2] ).join( " " );
+    for ( let i = 0; i < show.length; i++ ) {
+      this.client.say( this.channel, [
+        sprintf( "%i)", i + 1 ),
+        irc.colors.wrap( "white", pad( shortpad, show[i].short, false ) ),
+        pad( longpad, show[i].long, false ),
+        irc.colors.wrap( "light_green", pad( availpad, show[i].available, true ) ),
+        pad( shortpad, show[i].short, false ),
+        "= " + this.formatBTC( show[i].btc )
+      ].join( " " ) );
+    }
+    let totalfiat = this.formatUSD( this.ticker.btcToUSD( total ) );
+    this.client.say( this.channel, ["Total:", this.formatBTC( total ), "=", totalfiat].join( " " ) );
   }
   onMessage( channel, from, message )
   {
@@ -193,6 +227,12 @@ class Bot {
         this.respondHot( from, volumes );
       }).catch( ( error ) => { this.sayError( from, "Volumes fetch failed" ); console.error( error ); });
     }
+    else if ( parts[0] === "!balance" )
+    {
+      this.ticker.getBalances().then( ( balances ) => {
+        this.respondBalances( from, balances );
+      }).catch( ( error ) => { this.sayError( from, "Balances fetch failed" ); console.error( error ); });
+    }
   }
   run()
   {
@@ -200,7 +240,8 @@ class Bot {
     let me = this;
     this.client = new irc.Client( config.server, config.nick, {
       autoRejoin: true,
-      encoding: 'utf-8',
+      encoding: "utf-8",
+      userName: "anteup",
       debug: true,
       channels: [[config.channel, config.channelpass].join( " " )]
     });
@@ -226,7 +267,6 @@ class Ticker {
     this.rates = null;
     this.rates_last = null;
     this.volumes = [];
-    this.refreshRates();
     this.bot = new Bot( this, config.irc );
   }
   update( data, entry )
@@ -236,16 +276,25 @@ class Ticker {
   }
   refreshRates()
   {
-    console.info( "Refreshing currency rates" );
     let me = this;
-    request( { uri: "http://api.fixer.io/latest?base=USD", method: "GET", json: true }, ( error, response, body ) => {
-      if ( error )
-        dumpError( error );
-      else {
+    return new Promise( ( resolve, reject ) => {
+      request( { uri: "http://api.fixer.io/latest?base=USD", method: "GET", json: true }, ( error, response, body ) => {
+        if ( error )
+          return reject( error );
         me.rates = body.rates;
         me.rates_last = moment();
-      }
+        console.info( "Refreshed fiat currency rates" );
+        resolve( me.rates );
+      });
     });
+  }
+  resolveCurrency( sign )
+  {
+    return ( this.currencies[sign] );
+  }
+  btcToUSD( value )
+  {
+    return ( this.btc_usd.last * value );
   }
   isBTCFresh()
   {
@@ -299,23 +348,47 @@ class Ticker {
       });
     });
   }
-  initialize()
+  getBalances()
   {
-    let me = this;
-    let p = new Promise( ( resolve, reject ) => {
-      plnx.returnCurrencies({}, ( error, data ) => {
+    return new Promise( ( resolve, reject ) => {
+      plnx.returnCompleteBalances({ key: this.config.poloniex.key, secret: this.config.poloniex.secret }, ( error, data ) => {
         if ( error )
-          reject( error );
-        else {
-          me.currencies = data;
-          resolve( me.currencies );
+          return reject( error );
+        let actual = [];
+        for ( let [key, value] of entries( data ) ) {
+          let available = Number.parseFloat( value.available );
+          if ( available > 0.0 )
+            actual.push({ currency: key, available: available, onOrders: Number.parseFloat( value.onOrders ), btc: Number.parseFloat( value.btcValue ) });
         }
+        actual.sort( ( a, b ) => {
+          if ( a.btc == b.btc )
+            return 0;
+          return ( a.btc > b.btc ? -1 : 1 );
+        });
+        resolve( actual );
       });
     });
-    return p;
+  }
+  initialize()
+  {
+    console.log( "Initializing..." );
+    let me = this;
+    let promises = [
+      new Promise( ( resolve, reject ) => {
+        plnx.returnCurrencies({}, ( error, data ) => {
+          if ( error )
+            return reject( error );
+          me.currencies = data;
+          console.log( "Got tradeable currency data" );
+          resolve( me.currencies );
+        });
+      }), this.refreshRates()
+    ];
+    return Promise.all( promises );
   }
   start()
   {
+    console.log( "Starting main..." );
     let me = this;
     setInterval( () => { this.refreshRates(); }, 600000 );
     this.bot.run();
