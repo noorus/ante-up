@@ -16,7 +16,7 @@ function* entries( obj ) {
 }
 
 function pad( pad, str, padLeft ) {
-  if ( typeof str === 'undefined' )
+  if ( typeof str === "undefined" )
     return pad;
   return ( padLeft ? ( pad + str ).slice( -pad.length ) : ( str + pad ).substring( 0, pad.length ) );
 }
@@ -200,6 +200,33 @@ class Bot {
     let totalfiat = this.formatUSD( this.ticker.btcToUSD( total ) );
     this.client.say( this.channel, ["Total:", this.formatBTC( total ), "=", totalfiat].join( " " ) );
   }
+  respondOrders( to, buys, sells )
+  {
+    for ( let i = 0; i < buys.length; i++ ) {
+      let entry = sells[i];
+      this.client.say( this.channel, [
+        irc.colors.wrap( "light_red", "BUY " ),
+        this.formatCurrency( entry.amount, entry.src, "" ),
+        "for",
+        this.formatCurrency( entry.total, entry.dst, "" ),
+        "at",
+        this.formatCurrency( entry.rate, entry.dst, "" ),
+        "(" + entry.time.fromNow() + ")"
+      ].join( " " ) );
+    }
+    for ( let i = 0; i < sells.length; i++ ) {
+      let entry = sells[i];
+      this.client.say( this.channel, [
+        irc.colors.wrap( "light_green", "SELL" ),
+        this.formatCurrency( entry.amount, entry.src, "" ),
+        "for",
+        this.formatCurrency( entry.total, entry.dst, "" ),
+        "at",
+        this.formatCurrency( entry.rate, entry.dst, "" ),
+        "(" + entry.time.fromNow() + ")"
+      ].join( " " ) );
+    }
+  }
   onMessage( channel, from, message )
   {
     let parts = message.split( " " );
@@ -232,6 +259,12 @@ class Bot {
       this.ticker.getBalances().then( ( balances ) => {
         this.respondBalances( from, balances );
       }).catch( ( error ) => { this.sayError( from, "Balances fetch failed" ); console.error( error ); });
+    }
+    else if ( parts[0] === "!orders" )
+    {
+      this.ticker.getOrders().then( ( orders ) => {
+        this.respondOrders( from, orders.buys, orders.sells );
+      }).catch( ( error ) => { this.sayError( from, "Orders fetch failed" ); console.error( error ); });
     }
   }
   run()
@@ -366,6 +399,31 @@ class Ticker {
           return ( a.btc > b.btc ? -1 : 1 );
         });
         resolve( actual );
+      });
+    });
+  }
+  getOrders()
+  {
+    return new Promise( ( resolve, reject ) => {
+      plnx.returnOpenOrders({ currencyPair: "all", key: this.config.poloniex.key, secret: this.config.poloniex.secret }, ( error, data ) => {
+        if ( error )
+          return reject( error );
+        let sells = [], buys = [];
+        for ( let [key, value] of entries( data ) ) {
+          let pair = key.split( "_" );
+          let src = pair[1];
+          let dst = pair[0];
+          for ( let i = 0; i < value.length; i++ ) {
+            let entry = { src: src, dst: dst, amount: Number.parseFloat( value[i].startingAmount ), rate: Number.parseFloat( value[i].rate ), total: Number.parseFloat( value[i].total ), time: moment.utc( value[i].date ) };
+            if ( value[i].type === "sell" )
+              sells.push( entry );
+            else if ( value[i].type == "buy" )
+              buys.push( entry );
+            else
+              return reject( new Error( "Got unknown order type" ) );
+          }
+        }
+        resolve({ buys: buys, sells: sells });
       });
     });
   }
