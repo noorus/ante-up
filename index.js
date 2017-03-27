@@ -10,6 +10,14 @@ let pe = require( "print-error" );
 
 let configuration = JSON.parse( fs.readFileSync( "configuration.json", "utf8" ) );
 
+let colors = {
+  money: "white", // as in currency values
+  error: "light_red", // "Ticker fetch failed"
+  user: "white", // "nick": I cannot do that
+  date: "white", // "2017-01-01 10:01:10"
+  sign: "white" // "XRP"
+};
+
 function* entries( obj ) {
   for ( let key of Object.keys( obj ) )
     yield [key, obj[key]];
@@ -69,31 +77,9 @@ class Bot {
   }
   sayError( to, error )
   {
-    let str = sprintf( "%s: %s", irc.colors.wrap( "white", to ), irc.colors.wrap( "dark_red", error ) );
+    let str = sprintf( "%s: %s", irc.colors.wrap( colors.user, to ), irc.colors.wrap( colors.error, error ) );
     this.client.say( this.channel, str );
   }
-/*
-  { date: 1490400000,
-    high: 967.40187689,
-    low: 888.98999998,
-    open: 946.79999997,
-    close: 950.97212081,
-    volume: 10424668.016878,
-    quoteVolume: 11261.95261788,
-    weightedAverage: 925.65369173 }
-*/
-/*
-{ id: 121,
-  last: '949.19999994',
-  lowestAsk: '949.12827896',
-  highestBid: '946.12300083',
-  percentChange: '-0.02646153',
-  baseVolume: '15260792.13696330',
-  quoteVolume: '16341.76942158',
-  isFrozen: '0',
-  high24hr: '979.00000000',
-  low24hr: '888.98999998' }
-*/
   say( args )
   {
     this.client.say( this.channel, sprintf.apply( this, arguments ) );
@@ -103,14 +89,14 @@ class Bot {
     let eur = ( this.ticker.rates.EUR * value );
     if ( !noeur )
       return sprintf( "%s USD (%s EUR)",
-        irc.colors.wrap( "white", "$" + f.round( value, 5 ) ),
-        irc.colors.wrap( "white", "€" + f.round( eur, 5 ) ) );
+        irc.colors.wrap( colors.money, "$" + f.round( value, 5 ) ),
+        irc.colors.wrap( colors.money, "€" + f.round( eur, 5 ) ) );
     else
-      return sprintf( "%s USD", irc.colors.wrap( "white", "$" + f.round( value, 5 ) ) );
+      return sprintf( "%s USD", irc.colors.wrap( colors.money, "$" + f.round( value, 5 ) ) );
   }
   formatCurrency( value, sign, prefix )
   {
-    return sprintf( "%s %s", irc.colors.wrap( "white", prefix + f.round( value, 5 ) ), sign );
+    return sprintf( "%s %s", irc.colors.wrap( colors.money, prefix + f.round( value, 5 ) ), sign );
   }
   formatBTC( value )
   {
@@ -124,7 +110,7 @@ class Bot {
   }
   formatDate( date )
   {
-    return irc.colors.wrap( "white", date.format( "YYYY-MM-DD HH:mm:ss" ) );
+    return irc.colors.wrap( colors.date, date.format( "YYYY-MM-DD HH:mm:ss" ) );
   }
   formatVolume( volume )
   {
@@ -132,7 +118,7 @@ class Bot {
   }
   respondBTC( to, series, current )
   {
-    let header = irc.colors.wrap( "white", "BTC/USD" );
+    let header = irc.colors.wrap( colors.sign, "BTC/USD" );
     let now = this.formatUSD( Number.parseFloat( current.last ) );
     let disp_percentage = this.formatPercentage( Number.parseFloat( current.percentChange ) );
     this.client.say( this.channel,
@@ -168,7 +154,7 @@ class Bot {
     let longpad = Array( lengths[1] ).join( " " );
     let volpad = Array( lengths[2] ).join( " " );
     for ( let i = 0; i < count; i++ )
-      this.client.say( this.channel, sprintf( "%i) ", i + 1 ) + irc.colors.wrap( "white", pad( shortpad, show[i].short, false ) ) + " " + pad( longpad, show[i].currency.name + ":", false ) + " " + pad( volpad, show[i].volume, true ) + " BTC (24h volume)" );
+      this.client.say( this.channel, sprintf( "%i) ", i + 1 ) + irc.colors.wrap( colors.sign, pad( shortpad, show[i].short, false ) ) + " " + pad( longpad, show[i].currency.name + ":", false ) + " " + pad( volpad, show[i].volume, true ) + " BTC (24h volume)" );
   }
   respondBalances( to, balances )
   {
@@ -290,6 +276,10 @@ class Bot {
       let coin = this.ticker.resolveCurrency( key );
       if ( !coin )
         return this.sayError( from, "I don't know that coin!" );
+      if ( key === "BTC" ) {
+        this.onMessage( channel, from, "!btc" );
+        return;
+      }
       this.ticker.refreshBTC().then( () => {
         this.respondCoin( from, key, coin );
       }).catch( ( error ) => { this.sayError( from, "Ticker fetch failed" ); console.error( error ); });
