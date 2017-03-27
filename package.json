@@ -1,5 +1,5 @@
 {
-  "name": "polo",
+  "name": "ante-up",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -9,11 +9,9 @@
     "irc": "^0.5.2",
     "moment": "^2.18.1",
     "plnx": "0.0.10",
-    "print-error": "^0.1.11",
     "redis": "^2.7.1",
     "redis-evalsha": "^1.1.1",
     "request": "^2.81.0",
-    "sprintf": "^0.1.5",
     "sprintf-js": "^1.0.3",
     "ubique": "^0.5.1"
   },
@@ -21,7 +19,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "noorus",
+  "license": "GPL-3.0",
   "private": true
 }
