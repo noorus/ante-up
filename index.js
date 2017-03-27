@@ -48,7 +48,7 @@ class MovingAverage {
   }
   update( value )
   {
-    let p = new Promise(( resolve, reject ) => {
+    let p = new Promise( ( resolve, reject ) => {
       this.rediseval.exec( "sma", [this.name], [value], ( err, res ) => {
         if ( err )
           reject( err );
@@ -108,6 +108,10 @@ class Bot {
     else
       return sprintf( "%s USD", irc.colors.wrap( "white", "$" + f.round( value, 5 ) ) );
   }
+  formatBTC( value )
+  {
+    return sprintf( "%s BTC", irc.colors.wrap( "white", "B" + f.round( value, 5 ) ) );
+  }
   formatPercentage( percentage )
   {
     let str = ( percentage > 0.0 ? "+" : "" ) + f.round( percentage, 5 ) + "%";
@@ -128,7 +132,7 @@ class Bot {
     let now = this.formatUSD( Number.parseFloat( current.last ) );
     let disp_percentage = this.formatPercentage( Number.parseFloat( current.percentChange ) );
     this.client.say( this.channel,
-      header + " Currently 1 BTC = " + now + " (24h: " + disp_percentage + ")"
+      header + " Currently " + this.formatBTC( 1.0 ) + " = " + now + " (24h: " + disp_percentage + ")"
     );
     if ( series !== null && series.length > 1 ) {
       let firstdate = moment( series[0].date, "X" );
@@ -154,7 +158,7 @@ class Bot {
       show.push({ short: pair[1], currency: currency, volume: vol });
       if ( pair[1].length > lengths[0] ) lengths[0] = pair[1].length + 2;
       if ( currency.name.length > lengths[1] ) lengths[1] = currency.name.length + 2;
-      if ( vol.length > lengths[2] ) lengths[2] = vol.length + 2;
+      if ( vol.length > lengths[2] ) lengths[2] = vol.length + 1;
     }
     let shortpad = Array( lengths[0] ).join( " " );
     let longpad = Array( lengths[1] ).join( " " );
