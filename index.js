@@ -74,6 +74,7 @@ class Bot {
     this.ticker = ticker;
     this.config = config;
     this.channel = this.config.channel;
+    this.last_coins_time = 0;
   }
   sayError( to, error )
   {
@@ -229,6 +230,24 @@ class Bot {
     }
     this.client.say( this.channel, tosay.join( " " ) );
   }
+  respondCoins( to )
+  {
+    let now = moment().unix();
+    if ( now - this.last_coins_time < 300 )
+      return this.sayError( to, "I've just listed them... :(" );
+    this.last_coins_time = now;
+    let coins = this.ticker.getCoins();
+    this.client.say( this.channel, irc.colors.wrap( "white", to ) + ": I know these coins!" );
+    let i = 1;
+    let me = this;
+    while ( coins.length > 0 ) {
+      let msg = coins.splice( 0, 32 ).join( " " );
+      setTimeout( () => {
+        me.client.say( me.channel, irc.colors.wrap( colors.sign, msg ) );
+      }, i * 1000 );
+      i++;
+    }
+  }
   onMessage( channel, from, message )
   {
     let parts = message.split( " " );
@@ -283,6 +302,10 @@ class Bot {
       this.ticker.refreshBTC().then( () => {
         this.respondCoin( from, key, coin );
       }).catch( ( error ) => { this.sayError( from, "Ticker fetch failed" ); console.error( error ); });
+    }
+    else if ( parts[0] === "!coins" )
+    {
+      this.respondCoins( from );
     }
   }
   run()
@@ -448,6 +471,14 @@ class Ticker {
         resolve({ buys: buys, sells: sells });
       });
     });
+  }
+  getCoins()
+  {
+    let coins = [];
+    for ( let [key, value] of entries( this.currencies ) ) {
+      coins.push( key );
+    }
+    return coins;
   }
   initialize()
   {
