@@ -189,6 +189,8 @@ class Bot {
   }
   respondOrders( to, buys, sells )
   {
+    if ( buys.length < 1 && sells.length < 1 )
+      return this.client.say( this.channel, "No open orders." );
     for ( let i = 0; i < buys.length; i++ ) {
       let entry = sells[i];
       this.client.say( this.channel, [
