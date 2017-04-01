@@ -20,7 +20,8 @@ Ante dat cryptocoin investment bizniz up with an insecure IRC bot!
     "server": "hostname",
     "channel": "#yourchannel",
     "channelpass": "yourchannelpassword",
-    "nick": "ante-chan"
+    "nick": "ante-chan",
+    "prefix": "!"
   }
 }
 ```

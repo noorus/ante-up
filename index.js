@@ -250,12 +250,22 @@ class Bot {
       i++;
     }
   }
+  parseCommand( str )
+  {
+    let prefix = this.config.prefix;
+    if ( str.indexOf( prefix ) == 0 )
+      return str.substr( prefix.length );
+    return null;
+  }
   onMessage( channel, from, message )
   {
     let parts = message.split( " " );
     if ( parts.length < 1 )
       return;
-    if ( parts[0] === "!btc" )
+    let command = this.parseCommand( parts[0].toLowerCase() );
+    if ( command === null )
+      return;
+    if ( command === "btc" )
     {
       let time = null;
       if ( parts.length > 1 )
@@ -271,25 +281,25 @@ class Bot {
         this.respondBTC( from, values[0], values[1] );
       }).catch( ( error ) => { this.sayError( from, "Chart fetch failed" ); console.error( error ); });
     }
-    else if ( parts[0] === "!hot" )
+    else if ( command === "hot" )
     {
       this.ticker.refreshVolumes().then( ( volumes ) => {
         this.respondHot( from, volumes );
       }).catch( ( error ) => { this.sayError( from, "Volumes fetch failed" ); console.error( error ); });
     }
-    else if ( parts[0] === "!balance" )
+    else if ( command === "balance" )
     {
       this.ticker.getBalances().then( ( balances ) => {
         this.respondBalances( from, balances );
       }).catch( ( error ) => { this.sayError( from, "Balances fetch failed" ); console.error( error ); });
     }
-    else if ( parts[0] === "!orders" )
+    else if ( command === "orders" )
     {
       this.ticker.getOrders().then( ( orders ) => {
         this.respondOrders( from, orders.buys, orders.sells );
       }).catch( ( error ) => { this.sayError( from, "Orders fetch failed" ); console.error( error ); });
     }
-    else if ( parts[0] === "!coin" )
+    else if ( command === "coin" )
     {
       if ( parts.length < 2 )
         return this.sayError( from, "Which coin?" );
@@ -305,7 +315,7 @@ class Bot {
         this.respondCoin( from, key, coin );
       }).catch( ( error ) => { this.sayError( from, "Ticker fetch failed" ); console.error( error ); });
     }
-    else if ( parts[0] === "!coins" )
+    else if ( command === "coins" )
     {
       this.respondCoins( from );
     }
