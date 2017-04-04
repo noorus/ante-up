@@ -6,7 +6,6 @@ let sprintf = require( "sprintf-js" ).sprintf;
 let request = require( "request" );
 let f = require( "float" );
 let fs = require( "fs" );
-let pe = require( "print-error" );
 
 let configuration = JSON.parse( fs.readFileSync( "configuration.json", "utf8" ) );
 
