@@ -8,14 +8,9 @@ Ante dat cryptocoin investment bizniz up with an insecure IRC bot!
     "key": "poloniex api key",
     "secret": "poloniex api secret"
   },
-  "coins": [
-    { "name": "Dash", "sign": "dash",   "baselines": [] },
-    { "name": "Monero", "sign": "xmr",  "baselines": [] },
-    { "name": "Golem", "sign": "gnt",   "baselines": [] },
-    { "name": "Augur", "sign": "rep",   "baselines": [] },
-    { "name": "Ripple", "sign": "xrp",  "baselines": [] },
-    { "name": "Sia", "sign": "sc",      "baselines": [] }
-  ],
+  "redis": {
+    "prefix": "ante_"
+  },
   "irc": {
     "server": "hostname",
     "channel": "#yourchannel",
