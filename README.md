@@ -48,6 +48,15 @@ ante-chan: SELL 0.1873 DASH for 0.02809 BTC at 0.15 BTC (44 minutes ago)
 > you: !coins
 ante-chan: I know these coins!
 ante-chan: 1CR ABY AC ACH ADN AEON AERO AIR AMP APH ARCH ARDR AUR AXIS ... [rest of coins]
+> you: !follow xrp 3600
+ante-chan: Done.
+> you: !follows
+ante-chan: FOLLOWING XRP Ripple (Report every an hour)
+ante-chan: UPDATE XRP Ripple Currently 1 XRP = 0.00003390 BTC (24h: +0.17058%)
+ante-chan: UPDATE XRP Ripple Currently 1 XRP = 0.00003390 BTC (24h: +0.16897%)
+[...]
+> you: !unfollow xrp
+ante-chan: Done.
 ```
 
 ## donations
