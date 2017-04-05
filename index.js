@@ -283,6 +283,41 @@ class Bot {
       i++;
     }
   }
+  notifyFollow( follow )
+  {
+    let pair = follow.pair.split( "_" );
+    let currency = this.ticker.currencies[pair[1]];
+    let do_usdt = ( pair[0] === "USDT" );
+    let tick = this.ticker.getTicker( follow.pair );
+    let disp_percentage = this.formatPercentage( Number.parseFloat( tick.percentChange ) );
+    this.client.say( this.channel, [
+      irc.colors.wrap( "cyan", "UPDATE" ),
+      irc.colors.wrap( colors.sign, pair[1] ),
+      currency.name,
+      "Currently",
+      this.formatCurrency( 1, pair[1], "" ),
+      "=",
+      do_usdt ? this.formatUSD( this.ticker.btcToUSD( 1 ) ) : this.formatCurrency( tick.last, pair[0], "" ),
+      "(24h: " + disp_percentage + ")"
+    ].join( " " ) );
+  }
+  respondFollows( follows )
+  {
+    if ( follows.length < 1 )
+      return this.client.say( this.channel, "Not following any coin." );
+    for ( let i = 0; i < follows.length; i++ ) {
+      let pair = follows[i].pair.split( "_" );
+      let currency = this.ticker.currencies[pair[1]];
+      let dur = moment.duration( follows[i].frequency ).humanize();
+      this.client.say( this.channel, [
+        irc.colors.wrap( "yellow", "FOLLOWING" ),
+        irc.colors.wrap( colors.sign, pair[1] ),
+        currency.name,
+        sprintf( "(Report %s %s)", ( dur[0] === "a" ? "once" : "every" ), dur )
+        ].join( " " )
+      );
+    }
+  }
   parseCommand( str )
   {
     let prefix = this.config.prefix;
@@ -352,6 +387,43 @@ class Bot {
     {
       this.respondCoins( from );
     }
+    else if ( command === "follow" )
+    {
+      if ( parts.length < 2 )
+        return this.sayError( from, "Follow what?" );
+      let key = parts[1].toUpperCase();
+      let coin = this.ticker.resolveCurrency( key );
+      if ( !coin )
+        return this.sayError( from, "I don't know that coin!" );
+      let frequency = 3600000;
+      if ( parts.length > 2 ) {
+        let freqs = Number.parseInt( parts[2] );
+        if ( freqs < 300 )
+          return this.sayError( from, "That reporting frequency seems a little short, try 300 seconds (5 minutes) or more.." );
+        else if ( freqs > 604800 )
+          freqs = 604800; // once a week
+        frequency = freqs * 1000;
+      }
+      let pair = ( key === "BTC" ? "USDT_BTC" : "BTC_" + key );
+      this.ticker.addFollow( pair, frequency, false );
+      this.say( "Done." );
+    }
+    else if ( command === "unfollow" )
+    {
+      if ( parts.length < 2 )
+        return this.sayError( from, "Unfollow what?" );
+      let key = parts[1].toUpperCase();
+      let coin = this.ticker.resolveCurrency( key );
+      if ( !coin )
+        return this.sayError( from, "I don't know that coin!" );
+      let pair = ( key === "BTC" ? "USDT_BTC" : "BTC_" + key );
+      this.ticker.removeFollow( pair );
+      this.say( "Done." );
+    }
+    else if ( command === "follows" )
+    {
+      this.respondFollows( this.ticker.getFollows() );
+    }
   }
   run()
   {
@@ -374,25 +446,59 @@ class Ticker {
     this.config = config;
     this.btc_usd = [];
     this.btc_usd_last = null;
-    this.monitor = [];
     this.redis = require( "redis" ).createClient();
     this.rediseval = new redis_evalsha( this.redis );
     this.rediseval.add( "sma", redisscript_sma );
-    for ( let i = 0; i < config.coins.length; i++ )
-    {
-      this.monitor.push({ name: config.coins[i].name, pair: "BTC_"+config.coins[i].sign.toUpperCase(), value: [] });
-    }
     this.currencies = null;
     this.rates = null;
     this.rates_last = null;
     this.volumes = [];
     this.bot = new Bot( this, config.irc );
     this.ticker = null;
+    this.follows = [];
   }
-  update( data, entry )
+  addFollow( pair, frequency, existing = false )
   {
-    entry.value = data;
-    // TODO console.log(data);
+    if ( !existing ) {
+      this.removeFollow( pair );
+      this.redis.hmset( this.config.redis.prefix + "follows", pair, frequency );
+    }
+    let entry = { pair: pair, frequency: Number.parseFloat( frequency ), last: moment.utc(), timer: null };
+    let tmr = setInterval( ( follow ) => {
+      this.bot.notifyFollow( follow );
+    }, frequency, entry );
+    entry.timer = tmr;
+    this.follows.push( entry );
+  }
+  removeFollow( pair )
+  {
+    this.redis.hdel( this.config.redis.prefix + "follows", pair );
+    for ( let i = 0; i < this.follows.length; i++ )
+      if ( this.follows[i].pair.toUpperCase() === pair.toUpperCase() ) {
+        clearInterval( this.follows[i].timer );
+        this.follows.splice( i, 1 );
+        break;
+      }
+  }
+  getFollows()
+  {
+    return this.follows;
+  }
+  loadFollows()
+  {
+    let me = this;
+    return new Promise( ( resolve, reject ) => {
+      this.redis.hgetall( this.config.redis.prefix + "follows", ( error, obj ) => {
+        if ( error )
+          return reject( error );
+        if ( !obj || typeof obj !== "object" )
+          return resolve( true );
+        for ( let [key, value] of entries( obj ) ) {
+          me.addFollow( key, value, true );
+        }
+        return resolve( true );
+      });
+    });
   }
   refreshRates()
   {
@@ -462,6 +568,10 @@ class Ticker {
         }
       });
     });
+  }
+  getTicker( pair )
+  {
+    return this.ticker[pair];
   }
   getChart( pair, from, to )
   {
@@ -540,7 +650,7 @@ class Ticker {
           console.log( "Got tradeable currency data" );
           resolve( me.currencies );
         });
-      }), this.refreshRates()
+      }), this.refreshRates(), this.refreshBTC(), this.loadFollows()
     ];
     return Promise.all( promises );
   }
@@ -552,18 +662,12 @@ class Ticker {
     this.bot.run();
     plnx.push( ( session ) => {
       session.subscribe( "ticker", ( data ) => {
+        let item = { id: 0, last: data[1], lowestAsk: data[2], highestBid: data[3], percentChange: data[4], baseVolume: data[5], quoteVolume: data[6], isFrozen: data[7], high24hr: data[8], low24hr: data[9] };
         if ( data[0] === "USDT_BTC" ) {
-          me.btc_usd = { id: 0, last: data[1], lowestAsk: data[2], highestBid: data[3], percentChange: data[4], baseVolume: data[5], quoteVolume: data[6], isFrozen: data[7], high24hr: data[8], low24hr: data[9] };
+          me.btc_usd = item;
           me.btc_usd_last = moment();
-        } else {
-          for ( let i = 0; i < me.monitor.length; i++ )
-          {
-            if ( data[0] === me.monitor[i].pair ) {
-              me.update( data, me.monitor[i] );
-              break;
-            }
-          }
         }
+        me.ticker[data[0]] = item;
       });
     });
   }
