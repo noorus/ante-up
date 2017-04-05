@@ -50,6 +50,9 @@ ante-chan: I know these coins!
 ante-chan: 1CR ABY AC ACH ADN AEON AERO AIR AMP APH ARCH ARDR AUR AXIS ... [rest of coins]
 ```
 
+## donations
+if you like my work, i'm taking *BTC* donations at: `1PTG2ywyHnyPtbngSVUtWFYaRX3sSu4YQn`
+
 ## please note
 Doing any kind of investment work relying on a publicly open IRC bot
 written half-assedly by someone you don't know would be incredibly irresponsible.
