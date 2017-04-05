@@ -51,7 +51,7 @@ ante-chan: 1CR ABY AC ACH ADN AEON AERO AIR AMP APH ARCH ARDR AUR AXIS ... [rest
 > you: !follow xrp 3600
 ante-chan: Done.
 > you: !follows
-ante-chan: FOLLOWING XRP Ripple (Report every an hour)
+ante-chan: FOLLOWING XRP Ripple (Report once an hour)
 ante-chan: UPDATE XRP Ripple Currently 1 XRP = 0.00003390 BTC (24h: +0.17058%)
 ante-chan: UPDATE XRP Ripple Currently 1 XRP = 0.00003390 BTC (24h: +0.16897%)
 [...]
@@ -60,7 +60,7 @@ ante-chan: Done.
 ```
 
 ## donations
-if you like my work, i'm taking *BTC* donations at: `1PTG2ywyHnyPtbngSVUtWFYaRX3sSu4YQn`
+If you like my work, i'm taking **BTC** donations at `1PTG2ywyHnyPtbngSVUtWFYaRX3sSu4YQn` ^-^
 
 ## please note
 Doing any kind of investment work relying on a publicly open IRC bot
