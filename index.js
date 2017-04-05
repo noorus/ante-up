@@ -22,14 +22,48 @@ function* entries( obj ) {
     yield [key, obj[key]];
 }
 
-function pad( pad, str, padLeft ) {
-  if ( typeof str === "undefined" )
-    return pad;
-  return ( padLeft ? ( pad + str ).slice( -pad.length ) : ( str + pad ).substring( 0, pad.length ) );
-}
-
 function dumpError( error ) {
   console.error( error );
+}
+
+// String pad polyfills by Behnam Mohammadi/uxitten
+
+if ( !String.prototype.padStart ) {
+  String.prototype.padStart = function padStart( targetLength, padString ) {
+    targetLength = targetLength >> 0;
+    padString = String( padString || ' ' );
+    if ( this.length > targetLength )
+      return String( this );
+    else
+      targetLength = targetLength - this.length;
+    if ( targetLength > padString.length )
+      padString += padString.repeat( targetLength / padString.length );
+    return padString.slice( 0, targetLength ) + String( this );
+  };
+}
+
+if ( !String.prototype.padEnd ) {
+  String.prototype.padEnd = function padEnd( targetLength, padString ) {
+    targetLength = targetLength >> 0;
+    padString = String( padString || ' ' );
+    if ( this.length > targetLength )
+      return String( this );
+    else
+      targetLength = targetLength - this.length;
+    if ( targetLength > padString.length )
+      padString += padString.repeat( targetLength / padString.length );
+    return String( this ) + padString.slice( 0, targetLength );
+  };
+}
+
+function floatZeroPad( value, decimals )
+{
+  let parts = f.round( value, decimals ).toString().split( "." );
+  if ( parts.length > 2 )
+    throw new Error( "Rounded float has more than one decimal point?!" );
+  if ( parts.length == 2 )
+    parts[1] = parts[1].padEnd( decimals, "0" );
+  return parts.join( "." );
 }
 
 let redisscript_sma = `local total = redis.call('get', KEYS[1] .. '.total')
@@ -84,19 +118,27 @@ class Bot {
   {
     this.client.say( this.channel, sprintf.apply( this, arguments ) );
   }
+  currencyToString( value )
+  {
+    return floatZeroPad( value, 8 );
+  }
+  percentageToString( value )
+  {
+    return sprintf( "%+f%%", f.round( value, 5 ) );
+  }
   formatUSD( value, noeur )
   {
     let eur = ( this.ticker.rates.EUR * value );
     if ( !noeur )
       return sprintf( "%s USD (%s EUR)",
-        irc.colors.wrap( colors.money, "$" + f.round( value, 5 ) ),
-        irc.colors.wrap( colors.money, "€" + f.round( eur, 5 ) ) );
+        irc.colors.wrap( colors.money, "$" + this.currencyToString( value ) ),
+        irc.colors.wrap( colors.money, "€" + this.currencyToString( eur ) ) );
     else
-      return sprintf( "%s USD", irc.colors.wrap( colors.money, "$" + f.round( value, 5 ) ) );
+      return sprintf( "%s USD", irc.colors.wrap( colors.money, "$" + this.currencyToString( value ) ) );
   }
   formatCurrency( value, sign, prefix )
   {
-    return sprintf( "%s %s", irc.colors.wrap( colors.money, prefix + f.round( value, 5 ) ), sign );
+    return sprintf( "%s %s", irc.colors.wrap( colors.money, prefix + this.currencyToString( value ) ), sign );
   }
   formatBTC( value )
   {
@@ -104,9 +146,7 @@ class Bot {
   }
   formatPercentage( percentage )
   {
-    let str = ( percentage > 0.0 ? "+" : "" ) + f.round( percentage, 5 ) + "%";
-    percentage = irc.colors.wrap( percentage > 0.0 ? "light_green" : "dark_red", str );
-    return percentage;
+    return irc.colors.wrap( percentage > 0.0 ? "light_green" : "dark_red", this.percentageToString( percentage ) );
   }
   formatDate( date )
   {
@@ -114,7 +154,7 @@ class Bot {
   }
   formatVolume( volume )
   {
-    return irc.colors.wrap( "light_green", f.round( Number.parseFloat( volume ), 5 ) );
+    return irc.colors.wrap( "light_green", floatZeroPad( Number.parseFloat( volume ), 5 ) );
   }
   respondBTC( to, series, current )
   {
@@ -146,15 +186,12 @@ class Bot {
       let currency = this.ticker.currencies[pair[1]];
       let vol = this.formatVolume( volumes[i].baseVolume );
       show.push({ short: pair[1], currency: currency, volume: vol });
-      if ( pair[1].length + 2 > lengths[0] ) lengths[0] = pair[1].length + 2;
-      if ( currency.name.length + 2 > lengths[1] ) lengths[1] = currency.name.length + 2;
-      if ( vol.length + 1 > lengths[2] ) lengths[2] = vol.length + 1;
+      if ( pair[1].length > lengths[0] ) lengths[0] = pair[1].length;
+      if ( currency.name.length > lengths[1] ) lengths[1] = currency.name.length;
+      if ( vol.length > lengths[2] ) lengths[2] = vol.length;
     }
-    let shortpad = Array( lengths[0] ).join( " " );
-    let longpad = Array( lengths[1] ).join( " " );
-    let volpad = Array( lengths[2] ).join( " " );
     for ( let i = 0; i < count; i++ )
-      this.client.say( this.channel, sprintf( "%i) ", i + 1 ) + irc.colors.wrap( colors.sign, pad( shortpad, show[i].short, false ) ) + " " + pad( longpad, show[i].currency.name + ":", false ) + " " + pad( volpad, show[i].volume, true ) + " BTC (24h volume)" );
+      this.client.say( this.channel, sprintf( "%i) ", i + 1 ) + irc.colors.wrap( colors.sign, show[i].short.padEnd( lengths[0] ) ) + " " + ( show[i].currency.name + ":" ).padEnd( lengths[1] + 1 ) + " " + show[i].volume.padStart( lengths[2] ) + " BTC (24h volume)" );
   }
   respondBalances( to, balances )
   {
@@ -164,22 +201,19 @@ class Bot {
     for ( let i = 0; i < balances.length; i++ ) {
       total = total + balances[i].btc;
       let data = this.ticker.resolveCurrency( balances[i].currency );
-      let item = { short: balances[i].currency, long: data.name, available: f.round( balances[i].available, 5 ).toString(), onOrders: balances[i].onOrders, btc: balances[i].btc };
+      let item = { short: balances[i].currency, long: data.name, total: f.round( balances[i].total, 5 ).toString(), available: balances[i].available, onOrders: balances[i].onOrders, btc: balances[i].btc };
       if ( item.short.length > lengths[0] ) lengths[0] = item.short.length;
       if ( item.long.length > lengths[1] ) lengths[1] = item.long.length;
-      if ( item.available.length > lengths[2] ) lengths[2] = item.available.length;
+      if ( item.total.length > lengths[2] ) lengths[2] = item.total.length;
       show.push( item );
     }
-    let shortpad = Array( lengths[0] + 1 ).join( " " );
-    let longpad = Array( lengths[1] + 1 ).join( " " );
-    let availpad = Array( lengths[2] ).join( " " );
-    for ( let i = 0; i < show.length; i++ ) {
+      for ( let i = 0; i < show.length; i++ ) {
       this.client.say( this.channel, [
         sprintf( "%i)", i + 1 ),
-        irc.colors.wrap( "white", pad( shortpad, show[i].short, false ) ),
-        pad( longpad, show[i].long, false ),
-        irc.colors.wrap( "light_green", pad( availpad, show[i].available, true ) ),
-        pad( shortpad, show[i].short, false ),
+        irc.colors.wrap( "white", show[i].short.padEnd( lengths[0] ) ),
+        show[i].long.padEnd( lengths[1] ),
+        irc.colors.wrap( "light_green", show[i].total.padStart( lengths[2] ) ),
+        show[i].short.padEnd( lengths[0] ),
         "= " + this.formatBTC( show[i].btc )
       ].join( " " ) );
     }
@@ -446,8 +480,10 @@ class Ticker {
         let actual = [];
         for ( let [key, value] of entries( data ) ) {
           let available = Number.parseFloat( value.available );
-          if ( available > 0.0 )
-            actual.push({ currency: key, available: available, onOrders: Number.parseFloat( value.onOrders ), btc: Number.parseFloat( value.btcValue ) });
+          let onOrders = Number.parseFloat( value.onOrders );
+          let total = available + onOrders;
+          if ( total > 0.0 )
+            actual.push({ currency: key, available: available, onOrders: onOrders, btc: Number.parseFloat( value.btcValue ), total: total });
         }
         actual.sort( ( a, b ) => {
           if ( a.btc == b.btc )
