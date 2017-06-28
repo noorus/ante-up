@@ -355,7 +355,7 @@ class Bot {
         this.respondHot( from, volumes );
       }).catch( ( error ) => { this.sayError( from, "Volumes fetch failed" ); console.error( error ); });
     }
-    else if ( command === "balance" )
+    else if ( command === "balance" || command === "balances" )
     {
       this.ticker.getBalances().then( ( balances ) => {
         this.respondBalances( from, balances );
@@ -399,7 +399,7 @@ class Bot {
       if ( parts.length > 2 ) {
         let freqs = Number.parseInt( parts[2] );
         if ( freqs < 300 )
-          return this.sayError( from, "That reporting frequency seems a little short, try 300 seconds (5 minutes) or more.." );
+          return this.sayError( from, "That reporting frequency seems a little short, try 300 seconds (5 minutes) or more!" );
         else if ( freqs > 604800 )
           freqs = 604800; // once a week
         frequency = freqs * 1000;
@@ -420,7 +420,7 @@ class Bot {
       this.ticker.removeFollow( pair );
       this.say( "Done." );
     }
-    else if ( command === "follows" )
+    else if ( command === "follows" || command === "following" )
     {
       this.respondFollows( this.ticker.getFollows() );
     }
