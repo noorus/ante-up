@@ -21,10 +21,34 @@ module.exports = class BitTrex {
       "cleartext": false
     });
   }
+  makeEndpoint( resource )
+  {
+    return sprintf( "https://bittrex.com/api/v1.1/%s", resource );
+  }
+  getCurrencies()
+  {
+    return new Promise( ( resolve, reject ) => {
+      this.bittrex.sendCustomRequest( this.makeEndpoint( "public/getcurrencies" ), ( data ) => {
+        if ( !data.success || !data.result )
+          return reject( new Error( "Could not fetch currencies" ) );
+        let actual = {};
+        for ( let [key, value] of entries( data.result ) ) {
+          let btx = {
+            txFee: value.TxFee,
+            delisted: !value.IsActive,
+            minConfirmations: value.MinConfirmation
+          };
+          let coin = { sign: value.Currency, name: value.CurrencyLong, exchanges: { bittrex: btx } };
+          actual[coin.sign] = coin;
+        }
+        resolve( actual );
+      }, false );
+    });
+  }
   getBalances()
   {
     return new Promise( ( resolve, reject ) => {
-      this.bittrex.sendCustomRequest( "https://bittrex.com/api/v1.1/account/getbalances", ( data ) => {
+      this.bittrex.sendCustomRequest( this.makeEndpoint( "account/getbalances" ), ( data ) => {
         if ( !data.success || !data.result )
           return reject( new Error( "Could not fetch balances" ) );
         let actual = [];
