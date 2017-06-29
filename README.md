@@ -7,6 +7,12 @@ Ante dat cryptocoin investment bizniz up with an insecure IRC bot!
   "poloniex": {
     "key": "poloniex api key",
     "secret": "poloniex api secret"
+    "enabled": true
+  },
+  "bittrex": {
+    "key": "bittrex api key",
+    "secret": "bittrex api secret"
+    "enabled": true
   },
   "redis": {
     "prefix": "ante_"
