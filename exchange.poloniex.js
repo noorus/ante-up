@@ -12,6 +12,7 @@ function* entries( obj ) {
 module.exports = class Poloniex {
   constructor( config )
   {
+    this.name = "Poloniex";
     this.config = config;
   }
   getCurrencies()

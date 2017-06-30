@@ -11,6 +11,7 @@ function* entries( obj ) {
 module.exports = class BitTrex {
   constructor( config )
   {
+    this.name = "Bittrex";
     this.config = config;
     this.bittrex = require( "node.bittrex.api" );
     this.bittrex.options({

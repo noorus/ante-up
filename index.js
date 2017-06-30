@@ -6,6 +6,10 @@ let sprintf = require( "sprintf-js" ).sprintf;
 let request = require( "request" );
 let f = require( "float" );
 let fs = require( "fs" );
+let exchanges = {
+  poloniex: require( "./exchange.poloniex.js" ),
+  bittrex: require( "./exchange.bittrex.js" )
+};
 
 let configuration = JSON.parse( fs.readFileSync( "configuration.json", "utf8" ) );
 
@@ -24,6 +28,30 @@ function* entries( obj ) {
 
 function dumpError( error ) {
   console.error( error );
+}
+
+// Object.assign polyfill by MDN
+
+if ( typeof Object.assign != "function" ) {
+  Object.assign = ( target, varArgs ) => { // .length of function is 2
+    'use strict';
+    if ( target == null ) { // TypeError if undefined or null
+      throw new TypeError( "Cannot convert undefined or null to object" );
+    }
+    var to = Object(target);
+    for ( let index = 1; index < arguments.length; index++ ) {
+      var nextSource = arguments[index];
+      if ( nextSource != null ) { // Skip over if undefined or null
+        for ( let nextKey in nextSource ) {
+          // Avoid bugs when hasOwnProperty is shadowed
+          if ( Object.prototype.hasOwnProperty.call( nextSource, nextKey ) ) {
+            to[nextKey] = nextSource[nextKey];
+          }
+        }
+      }
+    }
+    return to;
+  };
 }
 
 // String pad polyfills by Behnam Mohammadi/uxitten
@@ -201,20 +229,21 @@ class Bot {
     for ( let i = 0; i < balances.length; i++ ) {
       total = total + balances[i].btc;
       let data = this.ticker.resolveCurrency( balances[i].currency );
-      let item = { short: balances[i].currency, long: data.name, total: f.round( balances[i].total, 5 ).toString(), available: balances[i].available, onOrders: balances[i].onOrders, btc: balances[i].btc };
+      let item = { short: balances[i].currency, long: data.name, total: f.round( balances[i].total, 5 ).toString(), available: balances[i].available, onOrders: balances[i].onOrders, btc: balances[i].btc, exchange: balances[i].exchange };
       if ( item.short.length > lengths[0] ) lengths[0] = item.short.length;
       if ( item.long.length > lengths[1] ) lengths[1] = item.long.length;
       if ( item.total.length > lengths[2] ) lengths[2] = item.total.length;
       show.push( item );
     }
-      for ( let i = 0; i < show.length; i++ ) {
+    for ( let i = 0; i < show.length; i++ ) {
       this.client.say( this.channel, [
         sprintf( "%i)", i + 1 ),
         irc.colors.wrap( "white", show[i].short.padEnd( lengths[0] ) ),
         show[i].long.padEnd( lengths[1] ),
         irc.colors.wrap( "light_green", show[i].total.padStart( lengths[2] ) ),
         show[i].short.padEnd( lengths[0] ),
-        "= " + this.formatBTC( show[i].btc )
+        "= " + this.formatBTC( show[i].btc ),
+        "(" + show[i].exchange + ")"
       ].join( " " ) );
     }
     let totalfiat = this.formatUSD( this.ticker.btcToUSD( total ) );
@@ -456,6 +485,10 @@ class Ticker {
     this.bot = new Bot( this, config.irc );
     this.ticker = null;
     this.follows = [];
+    this.backends = [
+      new exchanges.poloniex( this.config.poloniex ),
+      new exchanges.bittrex( this.config.bittrex )
+    ];
   }
   addFollow( pair, frequency, existing = false )
   {
@@ -583,25 +616,20 @@ class Ticker {
   }
   getBalances()
   {
-    return new Promise( ( resolve, reject ) => {
-      plnx.returnCompleteBalances({ key: this.config.poloniex.key, secret: this.config.poloniex.secret }, ( error, data ) => {
-        if ( error )
-          return reject( error );
-        let actual = [];
-        for ( let [key, value] of entries( data ) ) {
-          let available = Number.parseFloat( value.available );
-          let onOrders = Number.parseFloat( value.onOrders );
-          let total = available + onOrders;
-          if ( total > 0.0 )
-            actual.push({ currency: key, available: available, onOrders: onOrders, btc: Number.parseFloat( value.btcValue ), total: total });
-        }
-        actual.sort( ( a, b ) => {
-          if ( a.btc == b.btc )
-            return 0;
-          return ( a.btc > b.btc ? -1 : 1 );
-        });
-        resolve( actual );
+    let calls = this.backends.map( backend => {
+      return backend.getBalances().then( balances => {
+        balances.forEach( balance => { balance.exchange = backend.name; } );
+        return balances;
       });
+    });
+    return Promise.all( calls ).then( values => {
+      let combined = [].concat.apply( [], values );
+      combined.sort( ( a, b ) => {
+        if ( a.btc == b.btc )
+          return 0;
+        return ( a.btc > b.btc ? -1 : 1 );
+      });
+      return combined;
     });
   }
   getOrders()
@@ -641,15 +669,22 @@ class Ticker {
   {
     console.log( "Initializing..." );
     let me = this;
+    let getCurrencies = this.backends.map( backend => {
+      return backend.getCurrencies();
+    });
     let promises = [
-      new Promise( ( resolve, reject ) => {
-        plnx.returnCurrencies({}, ( error, data ) => {
-          if ( error )
-            return reject( error );
-          me.currencies = data;
-          console.log( "Got tradeable currency data" );
-          resolve( me.currencies );
-        });
+      Promise.all( getCurrencies ).then( values => {
+        let actual = {};
+        for ( let i = 0; i < values.length; i++ )
+          for ( let [key, value] of entries( values[i] ) ) {
+            if ( !actual.hasOwnProperty( key ) )
+              actual[key] = value;
+            else
+              Object.assign( actual[key].exchanges, value.exchanges );
+          }
+        me.currencies = actual;
+        console.log( "Got tradeable currency data" );
+        return me.currencies;
       }), this.refreshRates(), this.refreshBTC(), this.loadFollows()
     ];
     return Promise.all( promises );
