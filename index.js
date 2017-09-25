@@ -89,8 +89,12 @@ function floatZeroPad( value, decimals )
   let parts = f.round( value, decimals ).toString().split( "." );
   if ( parts.length > 2 )
     throw new Error( "Rounded float has more than one decimal point?!" );
-  if ( parts.length == 2 )
+  else if ( parts.length == 2 )
     parts[1] = parts[1].padEnd( decimals, "0" );
+  else if ( parts.length == 1 )
+  {
+    parts.push( Array( decimals + 1 ).join( "0" ) );
+  }
   return parts.join( "." );
 }
 
@@ -184,6 +188,10 @@ class Bot {
   {
     return irc.colors.wrap( "light_green", floatZeroPad( Number.parseFloat( volume ), 5 ) );
   }
+  formatBalanceDisplay( sum )
+  {
+    return floatZeroPad( sum, 5 );
+  }
   respondBTC( to, series, current )
   {
     let header = irc.colors.wrap( colors.sign, "BTC/USD" );
@@ -229,7 +237,10 @@ class Bot {
     for ( let i = 0; i < balances.length; i++ ) {
       total = total + balances[i].btc;
       let data = this.ticker.resolveCurrency( balances[i].currency );
-      let item = { short: balances[i].currency, long: data.name, total: f.round( balances[i].total, 5 ).toString(), available: balances[i].available, onOrders: balances[i].onOrders, btc: balances[i].btc, exchange: balances[i].exchange };
+      let totalfmt = this.formatBalanceDisplay( balances[i].total );
+      if ( totalfmt == "0.00000" ) // hack
+        continue;
+      let item = { short: balances[i].currency, long: data.name, total: totalfmt, available: balances[i].available, onOrders: balances[i].onOrders, btc: balances[i].btc, exchange: balances[i].exchange };
       if ( item.short.length > lengths[0] ) lengths[0] = item.short.length;
       if ( item.long.length > lengths[1] ) lengths[1] = item.long.length;
       if ( item.total.length > lengths[2] ) lengths[2] = item.total.length;
